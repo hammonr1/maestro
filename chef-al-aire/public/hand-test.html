@@ -1,0 +1,981 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chef Al Aire - Hand Gesture Prototype</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: 'Arial', sans-serif;
+            background-color: #f0f0f0;
+            color: #333333;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Full Screen Cursor with Gesture Colors */
+        .hand-cursor {
+            position: fixed;
+            width: 24px;
+            height: 24px;
+            background-color: #ff4444;
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 3px 12px rgba(255, 68, 68, 0.5);
+            transform: translate(-50%, -50%);
+            transition: all 0.2s ease;
+            opacity: 0;
+        }
+
+        .hand-cursor.visible {
+            opacity: 1;
+        }
+
+        /* Gesture-based cursor colors */
+        .hand-cursor.pinch {
+            background-color: #4CAF50;
+            box-shadow: 0 3px 12px rgba(76, 175, 80, 0.6);
+            width: 28px;
+            height: 28px;
+        }
+
+        .hand-cursor.palm {
+            background-color: #2196F3;
+            box-shadow: 0 3px 12px rgba(33, 150, 243, 0.6);
+            width: 28px;
+            height: 28px;
+        }
+
+        /* Gesture Status Display */
+        .gesture-display {
+            position: fixed;
+            bottom: 50px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.9);
+            color: #ffffff;
+            padding: 20px 40px;
+            border-radius: 15px;
+            font-size: 28px;
+            font-weight: bold;
+            font-family: 'Arial', sans-serif;
+            z-index: 9998;
+            transition: all 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .gesture-display.visible {
+            opacity: 1;
+        }
+
+        .gesture-display.pinch {
+            background-color: rgba(76, 175, 80, 0.9);
+            color: #ffffff;
+        }
+
+        .gesture-display.palm {
+            background-color: rgba(33, 150, 243, 0.9);
+            color: #ffffff;
+        }
+
+        .gesture-display.two-finger {
+            background-color: rgba(76, 175, 80, 0.9);
+            color: #ffffff;
+        }
+
+        /* Dwell Progress Ring */
+        .dwell-progress-ring {
+            position: fixed;
+            width: 50px;
+            height: 50px;
+            border: 4px solid transparent;
+            border-top-color: #0088ff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 9998;
+            transition: transform 0.1s ease, opacity 0.2s ease;
+            opacity: 0;
+        }
+
+        /* Test Buttons */
+        .test-buttons {
+            position: fixed;
+            bottom: 150px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            z-index: 9996;
+        }
+
+        .test-button {
+            padding: 20px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            background-color: #dddddd;
+            border: 3px solid #333;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: relative;
+            min-width: 120px;
+            text-align: center;
+        }
+
+        .test-button:hover {
+            background-color: #ff6b35;
+            transform: scale(1.05);
+        }
+
+        .test-button.clicked {
+            transform: scale(0.95);
+            background-color: #4CAF50;
+            color: white;
+        }
+
+        .test-button[data-tooltip]:after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 14px;
+            white-space: nowrap;
+            margin-bottom: 5px;
+        }
+
+        /* Click Notification */
+        .click-notification {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(76, 175, 80, 0.95);
+            color: white;
+            padding: 30px 50px;
+            border-radius: 15px;
+            font-size: 24px;
+            font-weight: bold;
+            z-index: 10000;
+            transition: all 0.3s ease;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Debug Info Panel */
+        .debug-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background-color: rgba(0, 0, 0, 0.8);
+            color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            z-index: 9998;
+            min-width: 250px;
+        }
+
+        .debug-row {
+            margin: 5px 0;
+        }
+
+        .debug-label {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+
+        /* Compact Video Feed */
+        .video-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9997;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+
+        #video {
+            width: 200px;
+            height: 150px;
+            background-color: #000;
+            display: block;
+            transform: scaleX(-1); /* Flip video horizontally to mirror effect */
+            -webkit-transform: scaleX(-1); /* Safari support */
+        }
+
+        #canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 200px;
+            height: 150px;
+            pointer-events: none;
+        }
+
+        /* Main Content Area */
+        .container {
+            text-align: center;
+            max-width: 800px;
+            width: 100%;
+            margin: 0 auto;
+            padding: 60px 20px 20px;
+        }
+
+        h1 {
+            font-size: 36px;
+            margin-bottom: 10px;
+            color: #4CAF50;
+        }
+
+        .subtitle {
+            font-size: 18px;
+            color: #666666;
+            margin-bottom: 40px;
+        }
+
+        .status {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 20px 0;
+            padding: 10px 20px;
+            border-radius: 5px;
+            background-color: #ffffff;
+            border: 2px solid #333;
+            display: inline-block;
+            min-width: 200px;
+        }
+
+        .status.initializing {
+            color: #ffc107;
+            border-color: #ffc107;
+        }
+
+        .status.camera-active {
+            color: #2196F3;
+            border-color: #2196F3;
+        }
+
+        .status.hand-detected {
+            color: #4CAF50;
+            border-color: #4CAF50;
+        }
+
+        .instructions {
+            background-color: #ffffff;
+            border-radius: 8px;
+            padding: 30px;
+            margin: 20px 0;
+            font-size: 16px;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .instruction-title {
+            color: #4CAF50;
+            font-weight: bold;
+            font-size: 18px;
+            margin-bottom: 15px;
+        }
+
+        .instruction-list {
+            list-style: none;
+            padding-left: 0;
+        }
+
+        .instruction-list li {
+            margin: 10px 0;
+            padding-left: 25px;
+            position: relative;
+        }
+
+        .instruction-list li:before {
+            content: "👉";
+            position: absolute;
+            left: 0;
+        }
+
+        .error-message {
+            background-color: #f44336;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        .fps-counter {
+            position: absolute;
+            bottom: 10px;
+            right: 10px;
+            background-color: rgba(0, 0, 0, 0.7);
+            color: #4CAF50;
+            padding: 5px 10px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Full Screen Hand Cursor -->
+    <div class="hand-cursor" id="handCursor"></div>
+    
+    <!-- Dwell Progress Ring -->
+    <div class="dwell-progress-ring" id="dwellProgressRing"></div>
+    
+    <!-- Gesture Status Display -->
+    <div class="gesture-display" id="gestureDisplay">NONE</div>
+    
+    <!-- Click Notification -->
+    <div class="click-notification" id="clickNotification"></div>
+    
+    <!-- Test Buttons for Clicking -->
+    <div class="test-buttons">
+        <button class="test-button" id="button1">Button A</button>
+        <button class="test-button" id="button2">Button B</button>
+        <button class="test-button" id="button3">Button C</button>
+    </div>
+    
+    <!-- Debug Info Panel -->
+    <div class="debug-panel">
+        <div class="debug-row">
+            <span class="debug-label">Phase:</span> 1C - Dual Click System
+        </div>
+        <div class="debug-row" id="debugStatus">
+            <span class="debug-label">Status:</span> Initializing...
+        </div>
+        <div class="debug-row" id="debugGesture">
+            <span class="debug-label">Gesture:</span> NONE
+        </div>
+        <div class="debug-row" id="debugTwoFinger">
+            <span class="debug-label">Two-Finger:</span> ---
+        </div>
+        <div class="debug-row" id="debugDwell">
+            <span class="debug-label">Dwell:</span> 0%
+        </div>
+        <div class="debug-row" id="debugCoords">
+            <span class="debug-label">Screen Coords:</span> (---, ---)
+        </div>
+        <div class="debug-row" id="debugFPS">
+            <span class="debug-label">FPS:</span> 0
+        </div>
+    </div>
+    
+    <!-- Compact Video Feed -->
+    <div class="video-container">
+        <video id="video" autoplay muted playsinline></video>
+        <canvas id="canvas"></canvas>
+        <div class="fps-counter" id="fpsCounter">FPS: 0</div>
+    </div>
+
+    <div class="container">
+        <h1>👆 Chef Al Aire Dual Click</h1>
+        <div class="subtitle">Phase 1C: Two-Finger Touch + Dwell Time Clicking</div>
+        
+        <div class="status initializing" id="status">Initializing...</div>
+        
+        <div class="error-message" id="error"></div>
+        
+        <div class="instructions">
+            <div class="instruction-title">Test Two Click Methods:</div>
+            <ul class="instruction-list">
+                <li><strong>Method 1 - Two-Finger Touch:</strong> Touch index and middle fingertips together while over button</li>
+                <li><strong>Method 2 - Dwell Time:</strong> Hold cursor over button for 1.5 seconds</li>
+                <li><strong>Visual Feedback:</strong> Green cursor = two-finger active, Blue cursor = dwelling</li>
+                <li><strong>Priority:</strong> Two-finger touch wins if both methods active</li>
+                <li>Try clicking the test buttons below!</li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- MediaPipe Dependencies -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+
+    <script>
+        class HandDualClickTracker {
+            constructor() {
+                // Video and canvas elements
+                this.video = document.getElementById('video');
+                this.canvas = document.getElementById('canvas');
+                this.ctx = this.canvas.getContext('2d');
+                
+                // UI elements
+                this.status = document.getElementById('status');
+                this.errorElement = document.getElementById('error');
+                this.fpsCounter = document.getElementById('fpsCounter');
+                this.handCursor = document.getElementById('handCursor');
+                this.gestureDisplay = document.getElementById('gestureDisplay');
+                this.dwellProgressRing = document.getElementById('dwellProgressRing');
+                this.clickNotification = document.getElementById('clickNotification');
+                
+                // Debug elements
+                this.debugStatus = document.getElementById('debugStatus');
+                this.debugGesture = document.getElementById('debugGesture');
+                this.debugTwoFinger = document.getElementById('debugTwoFinger');
+                this.debugDwell = document.getElementById('debugDwell');
+                this.debugCoords = document.getElementById('debugCoords');
+                this.debugFPS = document.getElementById('debugFPS');
+                
+                // Test buttons
+                this.testButtons = [
+                    document.getElementById('button1'),
+                    document.getElementById('button2'),
+                    document.getElementById('button3')
+                ];
+                
+                // Performance tracking
+                this.frameCount = 0;
+                this.cursorFrameCount = 0;
+                this.lastTime = performance.now();
+                this.fps = 0;
+                
+                // MediaPipe setup
+                this.hands = null;
+                this.camera = null;
+                
+                // Cursor smoothing - hamoco-style
+                this.smoothFactor = 0.3;
+                this.currentCursorX = window.innerWidth / 2;
+                this.currentCursorY = window.innerHeight / 2;
+                this.targetCursorX = this.currentCursorX;
+                this.targetCursorY = this.currentCursorY;
+                
+                // Dual Click System Settings
+                this.twoFingerThreshold = 0.04; // Distance threshold for two-finger touch
+                this.dwellDuration = 1500; // 1.5 seconds in milliseconds
+                
+                // Dwell state
+                this.dwellState = {
+                    currentTarget: null,
+                    startTime: null,
+                    progressPercentage: 0
+                };
+                
+                // Gesture debouncing
+                this.gestureDebounce = {
+                    twoFinger: false
+                };
+                
+                this.init();
+            }
+            
+            async init() {
+                try {
+                    this.updateDebugStatus('Initializing MediaPipe...');
+                    await this.setupMediaPipe();
+                    await this.setupCamera();
+                    this.updateStatus('camera-active', 'Camera Active');
+                    this.updateDebugStatus('Camera Active - Show hand');
+                } catch (error) {
+                    this.showError('Initialization failed: ' + error.message);
+                    console.error('Initialization error:', error);
+                }
+            }
+            
+            setupMediaPipe() {
+                return new Promise((resolve, reject) => {
+                    try {
+                        this.hands = new Hands({
+                            locateFile: (file) => {
+                                return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+                            }
+                        });
+                        
+                        this.hands.setOptions({
+                            maxNumHands: 1,
+                            modelComplexity: 1,
+                            minDetectionConfidence: 0.5,
+                            minTrackingConfidence: 0.5
+                        });
+                        
+                        this.hands.onResults(this.onResults.bind(this));
+                        resolve();
+                    } catch (error) {
+                        reject(error);
+                    }
+                });
+            }
+            
+            async setupCamera() {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({
+                        video: {
+                            width: 640,
+                            height: 480,
+                            facingMode: 'user'
+                        }
+                    });
+                    
+                    this.video.srcObject = stream;
+                    
+                    return new Promise((resolve) => {
+                        this.video.onloadedmetadata = () => {
+                            this.video.play();
+                            this.canvas.width = 200;
+                            this.canvas.height = 150;
+                            
+                            this.camera = new Camera(this.video, {
+                                onFrame: async () => {
+                                    await this.hands.send({image: this.video});
+                                    this.updateFPS();
+                                },
+                                width: 640,
+                                height: 480
+                            });
+                            
+                            this.camera.start();
+                            resolve();
+                        };
+                    });
+                } catch (error) {
+                    throw new Error('Camera access denied or not available');
+                }
+            }
+            
+            onResults(results) {
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                    this.updateStatus('hand-detected', 'Hand Detected - Dual Click Active');
+                    this.updateDebugStatus('Hand Detected');
+                    
+                    const landmarks = results.multiHandLandmarks[0];
+                    
+                    // Draw hand landmarks
+                    this.drawHand(landmarks);
+                    
+                    // Update cursor position
+                    this.updateCursor(landmarks);
+                    
+                    // Detect clicks using both methods
+                    const clickState = this.detectClick(landmarks, this.currentCursorX, this.currentCursorY, this.testButtons);
+                    
+                    // Update visuals based on click state
+                    this.updateCursorVisuals(clickState);
+                    this.updateButtonFeedback(clickState, this.testButtons);
+                    
+                    // Handle click if detected
+                    if (clickState.clicked) {
+                        this.handleButtonClick(clickState.target, clickState.method);
+                    }
+                    
+                } else {
+                    this.updateStatus('camera-active', 'Camera Active - Show your hand');
+                    this.updateDebugStatus('Camera Active - No hand');
+                    this.hideCursor();
+                    this.resetDwell();
+                }
+                
+                this.frameCount++;
+            }
+            
+            // DUAL CLICK DETECTION METHODS
+            
+            detectTwoFingerTouch(landmarks) {
+                const indexTip = landmarks[8];   // Index finger tip
+                const middleTip = landmarks[12]; // Middle finger tip
+                
+                // Calculate distance between fingertips (3D Euclidean distance)
+                const dx = indexTip.x - middleTip.x;
+                const dy = indexTip.y - middleTip.y;
+                const dz = (indexTip.z || 0) - (middleTip.z || 0); // Use z coordinate if available
+                const distance = Math.sqrt(dx*dx + dy*dy + dz*dz);
+                
+                // Update debug info
+                this.updateDebugTwoFinger(distance.toFixed(3));
+                
+                // Fingers touching if distance < threshold
+                const areTouching = distance < this.twoFingerThreshold;
+                
+                console.log(`Two-finger distance: ${distance.toFixed(3)}, touching: ${areTouching}`);
+                
+                return areTouching;
+            }
+            
+            checkDwellClick(cursorX, cursorY, clickableElements) {
+                // Find which element (if any) cursor is currently over
+                const hoveredElement = this.getElementUnderCursor(cursorX, cursorY, clickableElements);
+                
+                if (hoveredElement) {
+                    // Cursor is over a clickable element
+                    
+                    if (hoveredElement === this.dwellState.currentTarget) {
+                        // Still hovering the same element - update progress
+                        const elapsed = Date.now() - this.dwellState.startTime;
+                        this.dwellState.progressPercentage = (elapsed / this.dwellDuration) * 100;
+                        
+                        // Update debug info
+                        this.updateDebugDwell(Math.round(this.dwellState.progressPercentage) + '%');
+                        
+                        // Check if dwell time complete
+                        if (elapsed >= this.dwellDuration) {
+                            console.log('DWELL CLICK: Time expired');
+                            return { clicked: true, element: hoveredElement, method: 'dwell' };
+                        }
+                        
+                    } else {
+                        // Started hovering a new element - reset timer
+                        console.log('DWELL: Started hovering new element');
+                        this.dwellState.currentTarget = hoveredElement;
+                        this.dwellState.startTime = Date.now();
+                        this.dwellState.progressPercentage = 0;
+                    }
+                    
+                } else {
+                    // Cursor not over anything - reset dwell state
+                    if (this.dwellState.currentTarget !== null) {
+                        console.log('DWELL: Cursor left element');
+                    }
+                    this.resetDwell();
+                }
+                
+                return { clicked: false };
+            }
+            
+            detectClick(landmarks, cursorX, cursorY, clickableElements) {
+                let clickDetected = false;
+                let clickMethod = null;
+                let clickTarget = null;
+                
+                // Method 1: Two-finger touch gesture
+                const isTwoFingerTouch = this.detectTwoFingerTouch(landmarks);
+                if (isTwoFingerTouch && !this.gestureDebounce.twoFinger) {
+                    // Two-finger click detected
+                    clickTarget = this.getElementUnderCursor(cursorX, cursorY, clickableElements);
+                    if (clickTarget) {
+                        clickDetected = true;
+                        clickMethod = 'gesture';
+                        console.log('CLICK: Two-finger touch gesture');
+                        
+                        // Debounce to prevent multiple rapid clicks
+                        this.gestureDebounce.twoFinger = true;
+                        setTimeout(() => {
+                            this.gestureDebounce.twoFinger = false;
+                        }, 500);
+                    }
+                }
+                
+                // Method 2: Dwell time (only check if gesture didn't trigger)
+                if (!clickDetected) {
+                    const dwellResult = this.checkDwellClick(cursorX, cursorY, clickableElements);
+                    if (dwellResult.clicked) {
+                        clickDetected = true;
+                        clickMethod = 'dwell';
+                        clickTarget = dwellResult.element;
+                        console.log('CLICK: Dwell time completed');
+                        
+                        // Reset dwell state after click
+                        this.resetDwell();
+                    }
+                }
+                
+                // Return click information
+                return {
+                    clicked: clickDetected,
+                    method: clickMethod,
+                    target: clickTarget,
+                    dwellProgress: this.dwellState.progressPercentage,
+                    twoFingerActive: isTwoFingerTouch
+                };
+            }
+            
+            getElementUnderCursor(x, y, elements) {
+                for (let element of elements) {
+                    const rect = element.getBoundingClientRect();
+                    if (x >= rect.left && x <= rect.right && 
+                        y >= rect.top && y <= rect.bottom) {
+                        return element;
+                    }
+                }
+                return null;
+            }
+            
+            // VISUAL FEEDBACK METHODS
+            
+            updateCursorVisuals(clickState) {
+                // Remove existing gesture classes
+                this.handCursor.classList.remove('pinch', 'palm');
+                this.gestureDisplay.classList.remove('two-finger', 'visible');
+                
+                // Base cursor style
+                let cursorColor = '#ff4444'; // Red default
+                
+                // Two-finger gesture active
+                if (clickState.twoFingerActive) {
+                    this.handCursor.classList.add('pinch'); // Reuse pinch styling (green)
+                    this.gestureDisplay.textContent = 'TWO-FINGER ACTIVE';
+                    this.gestureDisplay.classList.add('two-finger', 'visible');
+                }
+                
+                // Dwell in progress
+                if (clickState.dwellProgress > 0) {
+                    this.handCursor.classList.add('palm'); // Reuse palm styling (blue)
+                    this.drawDwellProgressRing(clickState.dwellProgress);
+                } else {
+                    this.hideDwellProgressRing();
+                }
+            }
+            
+            drawDwellProgressRing(progressPercent) {
+                const progressRing = this.dwellProgressRing;
+                
+                // Update position to match cursor
+                progressRing.style.left = (this.currentCursorX - 25) + 'px';
+                progressRing.style.top = (this.currentCursorY - 25) + 'px';
+                
+                // Update rotation based on progress
+                const rotation = (progressPercent / 100) * 360;
+                progressRing.style.transform = `rotate(${rotation}deg)`;
+                progressRing.style.opacity = '1';
+            }
+            
+            hideDwellProgressRing() {
+                this.dwellProgressRing.style.opacity = '0';
+            }
+            
+            updateButtonFeedback(clickState, buttons) {
+                buttons.forEach(button => {
+                    const isHovered = clickState.target === button;
+                    
+                    if (isHovered) {
+                        // Hovering this button
+                        button.style.backgroundColor = '#ff6b35'; // Orange highlight
+                        button.style.transform = 'scale(1.05)';
+                        
+                        // Show dwell progress as button fill
+                        if (clickState.dwellProgress > 0) {
+                            const fillPercent = clickState.dwellProgress;
+                            button.style.background = `linear-gradient(to right, 
+                                #ff6b35 ${fillPercent}%, 
+                                #ddd ${fillPercent}%)`;
+                        }
+                        
+                        // Show tooltip
+                        if (clickState.twoFingerActive) {
+                            button.setAttribute('data-tooltip', '✓ Release to click');
+                        } else if (clickState.dwellProgress > 0) {
+                            const remaining = ((this.dwellDuration - (Date.now() - this.dwellState.startTime)) / 1000).toFixed(1);
+                            button.setAttribute('data-tooltip', `Hold ${remaining}s`);
+                        } else {
+                            button.setAttribute('data-tooltip', 'Hover to click');
+                        }
+                        
+                    } else {
+                        // Not hovering
+                        button.style.backgroundColor = '#dddddd';
+                        button.style.transform = 'scale(1)';
+                        button.style.background = '#dddddd';
+                        button.removeAttribute('data-tooltip');
+                    }
+                });
+            }
+            
+            handleButtonClick(button, method) {
+                console.log(`CLICKED: ${button.textContent} via ${method}`);
+                
+                // Visual feedback
+                button.classList.add('clicked');
+                button.style.transform = 'scale(0.95)';
+                setTimeout(() => {
+                    button.style.transform = 'scale(1)';
+                    button.classList.remove('clicked');
+                }, 200);
+                
+                // Show click notification
+                this.showNotification(`${button.textContent} clicked! (${method})`);
+            }
+            
+            showNotification(message) {
+                this.clickNotification.textContent = message;
+                this.clickNotification.style.opacity = '1';
+                setTimeout(() => {
+                    this.clickNotification.style.opacity = '0';
+                }, 2000);
+            }
+            
+            // UTILITY METHODS
+            
+            resetDwell() {
+                this.dwellState.currentTarget = null;
+                this.dwellState.startTime = null;
+                this.dwellState.progressPercentage = 0;
+                this.updateDebugDwell('0%');
+            }
+            
+            updateCursor(landmarks) {
+                // Get index finger tip (landmark 8) - hamoco approach
+                const indexTip = landmarks[8];
+                
+                // MediaPipe gives normalized coordinates (0.0 to 1.0)
+                // Map to full screen coordinates with FIXED mirror effect
+                const normalizedX = indexTip.x; // 0.0 to 1.0
+                const normalizedY = indexTip.y; // 0.0 to 1.0
+                
+                // Convert to screen pixels - FLIP X AXIS for natural movement
+                this.targetCursorX = (1 - normalizedX) * window.innerWidth;  // ← Fixed: Flip X axis
+                this.targetCursorY = normalizedY * window.innerHeight;       // ← Y stays same
+                
+                // Clamp coordinates to screen bounds
+                this.targetCursorX = Math.max(0, Math.min(window.innerWidth, this.targetCursorX));
+                this.targetCursorY = Math.max(0, Math.min(window.innerHeight, this.targetCursorY));
+                
+                // Apply smoothing (linear interpolation)
+                this.currentCursorX += (this.targetCursorX - this.currentCursorX) * this.smoothFactor;
+                this.currentCursorY += (this.targetCursorY - this.currentCursorY) * this.smoothFactor;
+                
+                // Update cursor position
+                this.handCursor.style.left = Math.round(this.currentCursorX) + 'px';
+                this.handCursor.style.top = Math.round(this.currentCursorY) + 'px';
+                this.handCursor.classList.add('visible');
+                
+                // Update debug info
+                this.updateDebugCoords(Math.round(this.currentCursorX), Math.round(this.currentCursorY));
+            }
+            
+            hideCursor() {
+                this.handCursor.classList.remove('visible', 'pinch', 'palm');
+                this.gestureDisplay.classList.remove('visible', 'two-finger');
+                this.hideDwellProgressRing();
+                this.updateDebugCoords('---', '---');
+            }
+            
+            drawHand(landmarks) {
+                const ctx = this.ctx;
+                
+                // Hand connections (simplified skeleton)
+                const connections = [
+                    [0, 1], [1, 2], [2, 3], [3, 4],      // Thumb
+                    [0, 5], [5, 6], [6, 7], [7, 8],      // Index finger
+                    [5, 9], [9, 10], [10, 11], [11, 12], // Middle finger
+                    [9, 13], [13, 14], [14, 15], [15, 16], // Ring finger
+                    [13, 17], [17, 18], [18, 19], [19, 20], // Pinky
+                    [0, 17] // Palm
+                ];
+                
+                // Draw connections
+                ctx.strokeStyle = '#4CAF50';
+                ctx.lineWidth = 1;
+                ctx.beginPath();
+                
+                connections.forEach(([start, end]) => {
+                    const startPoint = landmarks[start];
+                    const endPoint = landmarks[end];
+                    
+                    ctx.moveTo(startPoint.x * this.canvas.width, startPoint.y * this.canvas.height);
+                    ctx.lineTo(endPoint.x * this.canvas.width, endPoint.y * this.canvas.height);
+                });
+                
+                ctx.stroke();
+                
+                // Draw landmarks with two-finger highlighting
+                landmarks.forEach((landmark, index) => {
+                    const x = landmark.x * this.canvas.width;
+                    const y = landmark.y * this.canvas.height;
+                    
+                    // Color coding for important landmarks
+                    if (index === 8 || index === 12) { // Index and middle finger tips
+                        ctx.fillStyle = '#4CAF50'; // Green for two-finger detection
+                    } else {
+                        ctx.fillStyle = '#ff4444';
+                    }
+                    
+                    ctx.beginPath();
+                    ctx.arc(x, y, (index === 8 || index === 12) ? 4 : 2, 0, 2 * Math.PI);
+                    ctx.fill();
+                    
+                    // Label key landmarks
+                    if (index === 8) { // Index finger tip
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = '7px Arial';
+                        ctx.fillText('INDEX', x + 5, y - 5);
+                    } else if (index === 12) { // Middle finger tip
+                        ctx.fillStyle = '#ffffff';
+                        ctx.font = '7px Arial';
+                        ctx.fillText('MIDDLE', x + 5, y + 15);
+                    }
+                });
+            }
+            
+            // DEBUG UPDATE METHODS
+            
+            updateStatus(className, text) {
+                this.status.className = `status ${className}`;
+                this.status.textContent = text;
+            }
+            
+            updateDebugStatus(text) {
+                this.debugStatus.innerHTML = `<span class="debug-label">Status:</span> ${text}`;
+            }
+            
+            updateDebugGesture(gesture) {
+                this.debugGesture.innerHTML = `<span class="debug-label">Gesture:</span> ${gesture}`;
+            }
+            
+            updateDebugTwoFinger(distance) {
+                this.debugTwoFinger.innerHTML = `<span class="debug-label">Two-Finger:</span> ${distance}`;
+            }
+            
+            updateDebugDwell(progress) {
+                this.debugDwell.innerHTML = `<span class="debug-label">Dwell:</span> ${progress}`;
+            }
+            
+            updateDebugCoords(x, y) {
+                this.debugCoords.innerHTML = `<span class="debug-label">Screen Coords:</span> (${x}, ${y})`;
+            }
+            
+            showError(message) {
+                this.errorElement.textContent = message;
+                this.errorElement.style.display = 'block';
+                this.updateStatus('initializing', 'Error');
+                this.updateDebugStatus('Error: ' + message);
+            }
+            
+            updateFPS() {
+                const now = performance.now();
+                const delta = now - this.lastTime;
+                
+                if (delta >= 1000) {
+                    this.fps = Math.round((this.frameCount * 1000) / delta);
+                    this.fpsCounter.textContent = `FPS: ${this.fps}`;
+                    this.debugFPS.innerHTML = `<span class="debug-label">FPS:</span> ${this.fps}`;
+                    this.frameCount = 0;
+                    this.lastTime = now;
+                }
+            }
+        }
+        
+        // Start the application when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            new HandDualClickTracker();
+        });
+        
+        // Handle window resize for cursor bounds
+        window.addEventListener('resize', () => {
+            // Update cursor bounds when window resizes
+        });
+        
+        // Handle camera permission errors gracefully
+        window.addEventListener('error', (event) => {
+            console.error('Global error:', event.error);
+        });
+    </script>
+</body>
+</html>
